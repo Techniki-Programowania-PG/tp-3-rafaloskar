@@ -115,7 +115,7 @@ std::vector<double> filter1d(const std::vector<double>& x,
     return y;
 }
 
-// === Filtracja 2D (konwolucja) ===
+// === Filtracja 2D ===
 std::vector<std::vector<double>> filter2d(
     const std::vector<std::vector<double>>& img,
     const std::vector<std::vector<double>>& kernel) {
@@ -156,7 +156,6 @@ std::vector<std::vector<double>> gaussian_kernel(int size, double sigma) {
         }
     }
 
-    // Normalizacja
     for (int i = 0; i < size; ++i)
         for (int j = 0; j < size; ++j)
             kernel[i][j] /= sum;
@@ -204,16 +203,29 @@ void plot_cos(double freq, double start, double end, size_t n_samples) {
 }
 
 void plot_square(double freq, double start, double end, size_t n_samples) {
-    auto t = std::vector<double>(n_samples);
+    std::vector<double> t(n_samples);
     double dt = (end - start) / (n_samples - 1);
     for (size_t i = 0; i < n_samples; ++i) t[i] = start + i * dt;
+
     auto y = generate_square(freq, start, end, n_samples);
+
     plot(t, y);
     title("Sygnał prostokątny");
     xlabel("Czas [s]");
     ylabel("Amplituda");
+    grid(true);  
+    
+    double x_min = start;
+    double x_max = end;
+    double y_min = -1.2;  
+    double y_max = 1.2;
+
+    xlim({x_min, x_max});
+    ylim({y_min, y_max});
+
     show();
 }
+
 
 void plot_sawtooth(double freq, double start, double end, size_t n_samples) {
     auto t = std::vector<double>(n_samples);
@@ -231,15 +243,23 @@ void plot_sawtooth(double freq, double start, double end, size_t n_samples) {
 void plot_dft(const std::vector<double>& signal, double sampling_rate) {
     auto X = dft(signal);
     size_t N = X.size();
-    std::vector<double> freqs(N), mag(N);
-    for (size_t k = 0; k < N; ++k) {
+    std::vector<double> freqs(N / 2), mag(N / 2);
+    for (size_t k = 0; k < N / 2; ++k) {
         freqs[k] = k * sampling_rate / static_cast<double>(N);
         mag[k] = std::abs(X[k]);
     }
+
     plot(freqs, mag);
     title("Widmo amplitudowe (DFT)");
     xlabel("Częstotliwość [Hz]");
     ylabel("|X(f)|");
+    grid(true);
+
+    xlim({0.0, sampling_rate / 2.0});
+
+    auto max_y = *std::max_element(mag.begin(), mag.end());
+    ylim({0.0, max_y * 1.1});  
+
     show();
 }
 
@@ -250,10 +270,19 @@ void plot_idft(const std::vector<double>& signal, double sampling_rate) {
     std::vector<double> t(N);
     double dt = 1.0 / sampling_rate;
     for (size_t i = 0; i < N; ++i) t[i] = i * dt;
+
     plot(t, x_rec);
     title("Rekonstrukcja sygnału (IDFT)");
     xlabel("Czas [s]");
     ylabel("Amplituda");
+    grid(true);
+
+    auto y_min = *std::min_element(x_rec.begin(), x_rec.end());
+    auto y_max = *std::max_element(x_rec.begin(), x_rec.end());
+    double y_margin = (y_max - y_min) * 0.1;
+    ylim({y_min - y_margin, y_max + y_margin});
+    xlim({0.0, (static_cast<double>(N) / sampling_rate)/10});
+
     show();
 }
 
@@ -275,13 +304,10 @@ void plot_filter1d(const std::vector<double>& signal,
     show();
 }
 
-#include <iomanip> // upewnij się, że to jest na początku pliku
-
 void plot_filter2d(const std::vector<std::vector<double>>& img,
                    const std::vector<std::vector<double>>& kernel) {
     auto out = filter2d(img, kernel);
 
-    // Wypisywanie przefiltrowanej macierzy
     std::cout << "Przefiltrowana macierz (Filtracja 2D):\n";
     for (const auto& row : out) {
         for (double val : row)
@@ -289,7 +315,6 @@ void plot_filter2d(const std::vector<std::vector<double>>& img,
         std::cout << "\n";
     }
 
-    // Wizualizacja w formie spłaszczonej
     std::vector<double> x, y1, y2;
     for (const auto& row : img)
         for (double val : row) y1.push_back(val);
@@ -307,33 +332,41 @@ void plot_filter2d(const std::vector<std::vector<double>>& img,
     title("Filtracja 2D (spłaszczone dane)");
     xlabel("Indeks próbki");
     ylabel("Wartość");
+
+    auto min_y = std::min(std::min_element(y1.begin(), y1.end()),
+                          std::min_element(y2.begin(), y2.end()));
+    auto max_y = std::max(std::max_element(y1.begin(), y1.end()),
+                          std::max_element(y2.begin(), y2.end()));
+    double margin_y = (*max_y - *min_y) * 0.1;
+    ylim({*min_y - margin_y, *max_y + margin_y});
+
+    double min_x = *std::min_element(x.begin(), x.end());
+    double max_x = *std::max_element(x.begin(), x.end());
+    double margin_x = (max_x - min_x) * 0.02;
+    xlim({min_x - margin_x, max_x + margin_x});
+
     show();
 }
-
 
 void plot_gaussian_blur(const std::vector<std::vector<double>>& img, int kernel_size, double sigma) {
     auto blurred = gaussian_blur(img, kernel_size, sigma);
 
-    // Wypisywanie przefiltrowanej macierzy
     std::cout << "Przefiltrowana macierz (rozmycie Gaussa):\n";
     for (const auto& row : blurred) {
         for (double val : row)
-            std::cout << std::fixed << std::setprecision(4) << val << "\t";
+            std::cout << std::fixed << std::setw(10) << std::setprecision(4) << val;
         std::cout << "\n";
     }
 
-    // Przygotowanie danych do wykresu (spłaszczone)
     std::vector<double> x, y1, y2;
     for (const auto& row : img)
         for (double val : row) y1.push_back(val);
-
     for (const auto& row : blurred)
         for (double val : row) y2.push_back(val);
 
     x.resize(y1.size());
-    std::iota(x.begin(), x.end(), 0);  // Indeksy: 0, 1, 2, ...
+    std::iota(x.begin(), x.end(), 0);
 
-    using namespace matplot;
     plot(x, y1, "-");
     hold(on);
     plot(x, y2, "--");
@@ -342,11 +375,26 @@ void plot_gaussian_blur(const std::vector<std::vector<double>>& img, int kernel_
     title("Rozmycie Gaussa (2D spłaszczone)");
     xlabel("Indeks");
     ylabel("Wartość");
+
+    double min1 = *std::min_element(y1.begin(), y1.end());
+    double max1 = *std::max_element(y1.begin(), y1.end());
+    double min2 = *std::min_element(y2.begin(), y2.end());
+    double max2 = *std::max_element(y2.begin(), y2.end());
+
+    double min_y = std::min(min1, min2);
+    double max_y = std::max(max1, max2);
+    double margin = (max_y - min_y) * 0.1;
+
+    ylim({min_y - margin, max_y + margin});
+
+    double min_x = *std::min_element(x.begin(), x.end());
+    double max_x = *std::max_element(x.begin(), x.end());
+    double margin_x = (max_x - min_x) * 0.02;
+    xlim({min_x - margin_x, max_x + margin_x});
+
     show();
 }
 
-
-// === Rejestracja w module _core ===
 PYBIND11_MODULE(_core, m) {
     m.doc() = R"pbdoc(
         Moduł C++ do generowania, analizowania (DFT/IDFT),
